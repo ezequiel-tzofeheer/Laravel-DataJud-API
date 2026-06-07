@@ -1,0 +1,79 @@
+services:
+
+    # Image
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - ./:/var/www
+        depends_on:
+            - redis
+        networks:
+            - laravel-datajud-api
+
+    # NGINX
+    nginx:
+        image: nginx:alpine
+        restart: unless-stopped
+        ports:
+            - "8099:80"
+        volumes:
+            - ./:/var/www
+            - ./docker/nginx/:/etc/nginx/conf.d/
+        networks:
+            - laravel-datajud-api
+
+    # DB (MySQL)
+    db:
+        image: mysql:8.0
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+            MYSQL_PASSWORD: ${DB_PASSWORD:-userpass}
+            MYSQL_USER: ${DB_USERNAME:-username}
+        volumes:
+            - ./.docker/mysql/dbdata:/var/lib/mysql
+        ports:
+            - "3449:3306"
+        networks:
+            - laravel-datajud-api
+
+    # PHPMyAdmin
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        restart: unless-stopped
+        ports:
+            - "8559:80"
+        environment:
+            PMA_HOST: db
+            PMA_PORT: 3306
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+        networks:
+            - laravel-datajud-api
+
+    queue:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      command: 'php artisan queue:work'
+      restart: unless-stopped
+      volumes:
+        - ./:/var/www
+      depends_on:
+        - redis
+      networks:
+        - laravel-datajud-api
+
+    # Redis
+    redis:
+        image: redis:latest
+        networks:
+            - laravel-datajud-api
+
+networks:
+    laravel-datajud-api:
+        driver: bridge
